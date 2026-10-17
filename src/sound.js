@@ -91,6 +91,28 @@ export const playWin = () => {
   notes.forEach((f, i) => tone(f, times[i], 0.3, "square", 0.1));
 };
 
+// Chuỗi combo streak
+export const playStreak = (combo = 2) => {
+  const baseFreq = Math.min(1200, 580 + combo * 80);
+  tone(baseFreq, 0, 0.1, "sine", 0.15);
+  tone(baseFreq * 1.25, 0.08, 0.18, "triangle", 0.18);
+};
+
+// Đoán đúng từ khóa ngoạn mục (Big Win / Early Solve)
+export const playBigWin = () => {
+  const chords = [
+    [523, 659, 784],
+    [587, 740, 880],
+    [659, 831, 988],
+    [784, 988, 1175, 1319],
+  ];
+  chords.forEach((chord, stepIdx) => {
+    chord.forEach((freq) => {
+      tone(freq, stepIdx * 0.12, 0.35, "triangle", 0.12);
+    });
+  });
+};
+
 // ---------- Nhạc nền ----------
 
 const BPM = 132;
