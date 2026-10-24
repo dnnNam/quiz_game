@@ -9,22 +9,14 @@ import {
   playWin,
   playClick,
   playStreak,
-  playBigWin,
+  playTick,
+  playTimeout,
   isMuted,
   setMuted,
   startMusic,
 } from "./sound";
 
-const POINTS_CORRECT = 10;
-const SPEED_BONUS = 30;
-
-// Chuẩn hóa chuỗi tiếng Việt để so sánh đoán từ khóa
-const cleanText = (str) =>
-  str
-    .trim()
-    .toLowerCase()
-    .normalize("NFC")
-    .replace(/\s+/g, " ");
+const QUESTION_TIME = 30;
 
 // Ô chữ bí mật phong cách Gameshow 3D
 function KeywordTiles({ word, shown, revealed, highlightAll = false }) {
@@ -86,25 +78,26 @@ function RulesModal({ onClose }) {
           <div className="rule-item">
             <div className="rule-badge">2</div>
             <div>
-              <strong>Trả lời câu hỏi:</strong> Trả lời đúng mỗi câu sẽ lật mở 1 chữ cái tương ứng của từ khóa.
+              <strong>Lật mở chữ cái & Điểm thưởng:</strong> Trả lời đúng mỗi câu sẽ lật mở 1 chữ cái của từ khóa. Từ khóa càng dài, mỗi câu trả lời đúng nhận càng nhiều điểm!
             </div>
           </div>
           <div className="rule-item">
             <div className="rule-badge">3</div>
             <div>
-              <strong>Câu hỏi tích điểm:</strong> Các câu hỏi dư tiếp theo giúp tích lũy thêm điểm thưởng!
+              <strong>Thời gian đếm ngược 30 giây:</strong> Mỗi câu hỏi có 30 giây suy nghĩ. 5 giây cuối sẽ có chuông tích tắc cảnh báo!
             </div>
           </div>
           <div className="rule-item">
             <div className="rule-badge">4</div>
             <div>
-              <strong>Đoán từ khóa sớm:</strong> Bạn nào xung phong đoán trúng từ khóa trước khi mở hết sẽ nhận thêm tới <strong>+50 điểm Thần Tốc</strong>!
+              <strong>Hết thời gian (30s):</strong> Nếu hết thời gian 30s mà chưa có đáp án, chữ cái tương ứng sẽ được tự động lật mở. Bấm nút "Câu Hỏi Tiếp Theo" để tiếp tục câu mới!
             </div>
           </div>
           <div className="rule-shortcut-box">
             <span className="shortcut-title">⌨️ Phím tắt tiện lợi cho người dẫn trò (MC):</span>
             <div className="shortcut-tags">
               <span><kbd>A</kbd> <kbd>B</kbd> <kbd>C</kbd> <kbd>D</kbd> hoặc <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>: Chọn đáp án</span>
+              <span><kbd>Enter</kbd> / <kbd>Space</kbd> / <kbd>→</kbd>: Chuyển câu tiếp theo</span>
               <span><kbd>F</kbd>: Toàn màn hình</span>
             </div>
           </div>
@@ -119,121 +112,121 @@ function RulesModal({ onClose }) {
   );
 }
 
-// Modal Đoán từ khóa ngay
-function GuessModal({ isOpen, onClose, onSubmit, errorMsg }) {
-  const [val, setVal] = useState("");
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      const timer = setTimeout(() => inputRef.current?.focus(), 80);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!val.trim()) return;
-    onSubmit(val);
-  };
-
-  const handleClose = () => {
-    setVal("");
-    onClose();
-  };
-
-  return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-card guess-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div className="modal-title-wrap">
-            <span className="modal-icon">🎯</span>
-            <h3>Đoán Từ Khóa Ngay</h3>
-          </div>
-          <button className="modal-close-btn" onClick={handleClose} aria-label="Đóng">
-            ✕
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="modal-body">
-          <p className="guess-tip">
-            Có bạn nào đã tìm ra từ khóa bí mật? Nhập ngay để nhận điểm thưởng thần tốc!
-          </p>
-          <div className="guess-input-wrap">
-            <input
-              ref={inputRef}
-              type="text"
-              className={`guess-input ${errorMsg ? "input-error" : ""}`}
-              placeholder="Nhập từ khóa dự đoán..."
-              value={val}
-              onChange={(e) => setVal(e.target.value)}
-              autoFocus
-            />
-            {errorMsg && <p className="guess-error-text">⚠️ {errorMsg}</p>}
-          </div>
-          <div className="guess-modal-actions">
-            <button type="button" className="btn-ghost" onClick={handleClose}>
-              Hủy
-            </button>
-            <button type="submit" className="btn-primary" disabled={!val.trim()}>
-              Xác nhận đoán ⚡
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 // Giao diện Vòng chơi Gameshow
 function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, isModalOpen }) {
   const [results, setResults] = useState(() => data.questions.map(() => null));
+  const [currentQIndex, setCurrentQIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [earlySolved, setEarlySolved] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(null);
-  const [isChecking, setIsChecking] = useState(false);
   const [feedback, setFeedback] = useState(null);
-  const [showGuessModal, setShowGuessModal] = useState(false);
-  const [guessError, setGuessError] = useState("");
   const [confettiActive, setConfettiActive] = useState(false);
   const [floatingPoint, setFloatingPoint] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME);
 
   const letterCount = [...data.keyword.normalize("NFC")].filter((c) => c !== " ").length;
-  const currentQIndex = results.findIndex((r) => r === null);
-  const allAnswered = currentQIndex === -1;
+  // Keyword dài nhiều điểm, keyword ngắn ít điểm: 6 chữ = 60đ, 7 chữ = 70đ, 8 chữ = 80đ
+  const pointsPerQuestion = letterCount * 10;
+
+  const allAnswered = currentQIndex >= data.questions.length;
+  const currentResult = !allAnswered ? results[currentQIndex] : null;
+  const hasAnsweredCurrent = currentResult !== null;
   const correctCount = results.filter((r) => r && r.correct).length;
 
   const shown = Array.from(
     { length: letterCount },
-    (_, k) => !!(results[k] && results[k].correct) || revealed || earlySolved
+    (_, k) =>
+      revealed ||
+      allAnswered ||
+      !!(results[k] && (results[k].correct || results[k].timeout))
   );
+
+  // Xử lý khi hết thời gian 30 giây
+  const handleTimeout = () => {
+    if (hasAnsweredCurrent || allAnswered || revealed) return;
+
+    playTimeout();
+    onUpdateStreak(false);
+
+    const isLetterQ = currentQIndex < letterCount;
+    const char = isLetterQ
+      ? [...data.keyword.normalize("NFC")].filter((c) => c !== " ")[currentQIndex]
+      : "";
+
+    setResults((prev) => {
+      const next = [...prev];
+      next[currentQIndex] = { picked: null, correct: false, timeout: true };
+      return next;
+    });
+
+    setFeedback({
+      type: "timeout",
+      text: isLetterQ
+        ? `⏰ Hết thời gian (30s)! Chữ cái "${char}" đã được tự động mở.`
+        : "⏰ Hết thời gian (30s)! Không có điểm cho câu hỏi này.",
+    });
+  };
+
+  const handleTimeoutRef = useRef(handleTimeout);
+  useEffect(() => {
+    handleTimeoutRef.current = handleTimeout;
+  });
+
+  // Bộ đếm ngược thời gian 30s
+  useEffect(() => {
+    if (hasAnsweredCurrent || allAnswered || revealed || isModalOpen) return;
+
+    if (timeLeft <= 0) {
+      handleTimeoutRef.current();
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        // Phát tiếng tích tắc ở 5 giây cuối
+        if (prev <= 6) {
+          playTick();
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeLeft, hasAnsweredCurrent, allAnswered, revealed, isModalOpen]);
 
   // Xử lý chọn đáp án
   const handleSelectOption = (optIdx) => {
-    if (isChecking || allAnswered || revealed) return;
-
-    setIsChecking(true);
-    setSelectedIndex(optIdx);
+    if (hasAnsweredCurrent || allAnswered || revealed) return;
 
     const q = data.questions[currentQIndex];
     const isCorrect = optIdx === q.answer;
     const isLetterQ = currentQIndex < letterCount;
+    const char = isLetterQ
+      ? [...data.keyword.normalize("NFC")].filter((c) => c !== " ")[currentQIndex]
+      : "";
+
+    setResults((prev) => {
+      const next = [...prev];
+      next[currentQIndex] = { picked: optIdx, correct: isCorrect, timeout: false };
+      return next;
+    });
 
     if (isCorrect) {
       playCorrect();
-      onAddScore(POINTS_CORRECT);
+      onAddScore(pointsPerQuestion);
       onUpdateStreak(true);
 
       // Hiệu ứng số điểm bay lên
-      setFloatingPoint(`+${POINTS_CORRECT}`);
+      setFloatingPoint(`+${pointsPerQuestion}`);
       setTimeout(() => setFloatingPoint(null), 1200);
 
       setFeedback({
         type: "correct",
         text: isLetterQ
-          ? `Chính xác! Chữ cái "${[...data.keyword.normalize("NFC")].filter((c) => c !== " ")[currentQIndex]}" đã được lật mở! 🎉`
-          : "Chính xác! Câu hỏi thưởng đã cộng thêm +10 điểm! ⭐",
+          ? `Chính xác! (+${pointsPerQuestion} điểm) Chữ cái "${char}" đã được lật mở! 🎉`
+          : `Chính xác! (+${pointsPerQuestion} điểm) Câu hỏi thưởng ghi điểm thành công! ⭐`,
       });
     } else {
       playWrong();
@@ -245,17 +238,6 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
           : "Chưa chính xác! Rất tiếc câu thưởng không ghi điểm.",
       });
     }
-
-    // Sau 1.1 giây chuyển sang câu tiếp theo
-    setTimeout(() => {
-      setResults((prev) => {
-        const next = [...prev];
-        next[currentQIndex] = { picked: optIdx, correct: isCorrect };
-        return next;
-      });
-      setSelectedIndex(null);
-      setIsChecking(false);
-    }, 1150);
   };
 
   const handleSelectRef = useRef(handleSelectOption);
@@ -263,53 +245,48 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
     handleSelectRef.current = handleSelectOption;
   });
 
+  // Chuyển sang câu hỏi tiếp theo do MC hoặc người chơi bấm
+  const handleNextQuestion = () => {
+    if (allAnswered) return;
+    playClick();
+    setFeedback(null);
+    setTimeLeft(QUESTION_TIME);
+    setCurrentQIndex((prev) => prev + 1);
+  };
+
+  const handleNextRef = useRef(handleNextQuestion);
+  useEffect(() => {
+    handleNextRef.current = handleNextQuestion;
+  });
+
   // Hỗ trợ phím tắt bàn phím cho MC
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (isModalOpen || showGuessModal) return;
-      const key = e.key.toUpperCase();
-      if (!isChecking && !allAnswered && !revealed) {
-        if (key === "1" || key === "A") handleSelectRef.current(0);
-        else if (key === "2" || key === "B") handleSelectRef.current(1);
-        else if (key === "3" || key === "C") handleSelectRef.current(2);
-        else if (key === "4" || key === "D") handleSelectRef.current(3);
+      if (isModalOpen) return;
+      const key = e.key;
+      const upper = key.toUpperCase();
+
+      if (!hasAnsweredCurrent && !allAnswered && !revealed) {
+        if (upper === "1" || upper === "A") handleSelectRef.current(0);
+        else if (upper === "2" || upper === "B") handleSelectRef.current(1);
+        else if (upper === "3" || upper === "C") handleSelectRef.current(2);
+        else if (upper === "4" || upper === "D") handleSelectRef.current(3);
+      } else if (hasAnsweredCurrent && !allAnswered && !revealed) {
+        if (key === "Enter" || key === " " || key === "ArrowRight") {
+          e.preventDefault();
+          handleNextRef.current();
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isChecking, allAnswered, revealed, isModalOpen, showGuessModal]);
-
-  // Xử lý đoán từ khóa trực tiếp
-  const handleGuessSubmit = (inputWord) => {
-    if (cleanText(inputWord) === cleanText(data.keyword)) {
-      playBigWin();
-      setConfettiActive(true);
-      setShowGuessModal(false);
-      setEarlySolved(true);
-      setRevealed(true);
-
-      const unansweredCount = results.filter((r) => r === null).length;
-      const bonus = unansweredCount * POINTS_CORRECT + SPEED_BONUS;
-      onAddScore(bonus);
-
-      setFloatingPoint(`+${bonus} Siêu Thưởng!`);
-      setTimeout(() => setFloatingPoint(null), 1600);
-
-      setFeedback({
-        type: "correct",
-        text: `XUẤT SẮC! Cả đội đã giải mã được từ khóa "${data.keyword}" và nhận thưởng +${bonus} điểm! 🏆`,
-      });
-    } else {
-      playWrong();
-      setGuessError("Từ khóa chưa đúng, hãy tiếp tục mở thêm các câu hỏi gợi ý nhé!");
-      setTimeout(() => setGuessError(""), 3000);
-    }
-  };
+  }, [hasAnsweredCurrent, allAnswered, revealed, isModalOpen]);
 
   // Mở toàn bộ từ khóa
   const handleRevealAll = () => {
     playReveal();
     setRevealed(true);
+    setConfettiActive(true);
     setFeedback({
       type: "info",
       text: `Từ khóa chính xác là: "${data.keyword}"`,
@@ -323,7 +300,7 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
     <section className="round-section">
       <Confetti active={confettiActive} />
 
-      {/* GAMESHOW ARENA HEADER (Không dùng ảnh, sang trọng & hoành tráng) */}
+      {/* GAMESHOW ARENA HEADER */}
       <div className="arena-header-card">
         <div className="arena-meta-row">
           <div className="round-stepper-pill">
@@ -358,28 +335,18 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
           word={data.keyword}
           shown={shown}
           revealed={revealed}
-          highlightAll={earlySolved}
+          highlightAll={revealed || allAnswered}
         />
 
-        {/* Bảng điều khiển từ khóa cho MC và nhóm chơi */}
+        {/* Thanh điều khiển từ khóa */}
         {!revealed ? (
-          <div className="guess-action-bar">
-            <button
-              className="btn-guess-early"
-              onClick={() => {
-                playClick();
-                setShowGuessModal(true);
-              }}
-            >
-              <span className="btn-icon-pulse">🎯</span>
-              <span>ĐOÁN TỪ KHÓA NGAY <em>(+Thưởng tới +50 điểm)</em></span>
-            </button>
+          <div className="stage-action-bar">
             <button
               className="btn-reveal-ghost"
               onClick={handleRevealAll}
               title="Mở toàn bộ từ khóa"
             >
-              👁️ Mở từ khóa
+              👁️ Mở toàn bộ từ khóa
             </button>
           </div>
         ) : (
@@ -390,7 +357,7 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
         )}
       </div>
 
-      {/* KHUNG CÂU HỎI VÀ 4 PHƯƠNG ÁN (To rõ, dễ nhìn trên màn chiếu) */}
+      {/* KHUNG CÂU HỎI VÀ 4 PHƯƠNG ÁN */}
       <div className="panel question-panel">
         <div className="q-progress-header">
           <div className="q-badge-wrap">
@@ -404,7 +371,43 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
                   : "⭐ Câu hỏi cộng điểm thưởng"}
               </span>
             )}
+            {!allAnswered && (
+              <span className="q-points-badge" title="Điểm thưởng tính theo độ dài từ khóa">
+                💎 +{pointsPerQuestion} điểm
+              </span>
+            )}
           </div>
+
+          {/* Đồng hồ đếm ngược 30 giây */}
+          {!allAnswered && !revealed && (
+            <div
+              className={`question-timer-badge ${
+                hasAnsweredCurrent
+                  ? "timer-paused"
+                  : timeLeft <= 5
+                  ? "timer-urgent"
+                  : timeLeft <= 10
+                  ? "timer-warning"
+                  : ""
+              }`}
+            >
+              <div className="timer-icon-wrap">
+                <span className="timer-sand">{hasAnsweredCurrent ? "⏹️" : "⏳"}</span>
+              </div>
+              <div className="timer-text-wrap">
+                <span className="timer-digits">
+                  {hasAnsweredCurrent && currentResult?.timeout ? "0s" : `${timeLeft}s`}
+                </span>
+                <span className="timer-label">
+                  {hasAnsweredCurrent
+                    ? currentResult?.timeout
+                      ? "Hết giờ"
+                      : "Đã chọn"
+                    : "thời gian"}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Stepper dạng chấm tròn */}
           <div className="question-stepper">
@@ -412,22 +415,45 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
               const r = results[i];
               let statusClass = "step-pending";
               if (r) {
-                statusClass = r.correct ? "step-ok" : "step-fail";
+                if (r.correct) statusClass = "step-ok";
+                else if (r.timeout) statusClass = "step-timeout";
+                else statusClass = "step-fail";
               } else if (i === currentQIndex) {
                 statusClass = "step-current";
               }
+              const isCurrent = i === currentQIndex && !allAnswered;
               return (
                 <div
                   key={i}
-                  className={`step-dot ${statusClass} ${i >= letterCount ? "step-bonus" : ""}`}
+                  className={`step-dot ${statusClass} ${isCurrent ? "step-current-active" : ""} ${
+                    i >= letterCount ? "step-bonus" : ""
+                  }`}
                   title={`Câu ${i + 1}`}
                 >
-                  {r ? (r.correct ? "✓" : "✗") : i + 1}
+                  {r ? (r.correct ? "✓" : r.timeout ? "⏰" : "✗") : i + 1}
                 </div>
               );
             })}
           </div>
         </div>
+
+        {/* Thanh thời gian chạy mượt mà 30s */}
+        {!allAnswered && !revealed && (
+          <div className="timer-bar-track">
+            <div
+              className={`timer-bar-fill ${
+                hasAnsweredCurrent
+                  ? "bar-paused"
+                  : timeLeft <= 5
+                  ? "bar-urgent"
+                  : timeLeft <= 10
+                  ? "bar-warning"
+                  : ""
+              }`}
+              style={{ width: `${(timeLeft / QUESTION_TIME) * 100}%` }}
+            />
+          </div>
+        )}
 
         {/* Floating điểm số bay lên */}
         {floatingPoint && <div className="floating-point-pop">{floatingPoint}</div>}
@@ -438,14 +464,15 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
 
             <div className="options-grid">
               {currentQ.options.map((opt, i) => {
-                const isSelected = selectedIndex === i;
+                const isSelected = currentResult ? currentResult.picked === i : false;
                 const isCorrectAnswer = i === currentQ.answer;
 
                 let stateClass = "";
-                if (isChecking) {
+                if (hasAnsweredCurrent) {
                   if (isSelected) {
                     stateClass = isCorrectAnswer ? "opt-correct" : "opt-wrong";
-                  } else if (isCorrectAnswer && selectedIndex !== null) {
+                  } else if (isCorrectAnswer) {
+                    // Khi chọn sai hoặc khi hết giờ: làm nổi bật đáp án đúng
                     stateClass = "opt-hint-correct";
                   }
                 }
@@ -457,14 +484,17 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
                     key={i}
                     className={`option-btn ${stateClass}`}
                     onClick={() => handleSelectOption(i)}
-                    disabled={isChecking}
+                    disabled={hasAnsweredCurrent || revealed}
                   >
                     <span className="option-letter">{optLetters[i]}</span>
                     <span className="option-text">{opt}</span>
-                    {isChecking && isSelected && (
+                    {hasAnsweredCurrent && isSelected && (
                       <span className="option-feedback-icon">
                         {isCorrectAnswer ? "✓" : "✗"}
                       </span>
+                    )}
+                    {hasAnsweredCurrent && !isSelected && isCorrectAnswer && (
+                      <span className="option-feedback-icon correct-hint">✓</span>
                     )}
                   </button>
                 );
@@ -490,6 +520,23 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
           )}
         </div>
 
+        {/* Nút Chuyển câu hỏi tiếp theo do MC hoặc người chơi bấm */}
+        {hasAnsweredCurrent && !allAnswered && !revealed && (
+          <div className="next-question-container">
+            <button
+              className="btn-next-question btn-glow"
+              onClick={handleNextQuestion}
+            >
+              <span className="btn-next-text">
+                {currentQIndex < data.questions.length - 1
+                  ? "Câu Hỏi Tiếp Theo ➔"
+                  : "Xem Kết Quả Vòng Này ➔"}
+              </span>
+              <span className="btn-next-hint">⏎ Enter / Space</span>
+            </button>
+          </div>
+        )}
+
         {/* Nút Vòng tiếp theo khi từ khóa đã mở hoặc hết câu */}
         {(revealed || allAnswered) && (
           <div className="next-round-container">
@@ -505,14 +552,6 @@ function Round({ data, roundNo, total, onNextRound, onAddScore, onUpdateStreak, 
           </div>
         )}
       </div>
-
-      {/* Modal đoán từ khóa */}
-      <GuessModal
-        isOpen={showGuessModal}
-        onClose={() => setShowGuessModal(false)}
-        onSubmit={handleGuessSubmit}
-        errorMsg={guessError}
-      />
     </section>
   );
 }
@@ -596,11 +635,11 @@ export default function App() {
     setConfettiWin(false);
   };
 
-  // Đánh giá danh hiệu người chơi
+  // Đánh giá danh hiệu người chơi theo thang điểm mới
   const getPlayerTitle = () => {
-    if (score >= 180) return { title: "Huyền Thoại Trí Tuệ 👑", stars: 3, desc: "Kiến thức uyên bác, trực giác và phán đoán xuất sắc!" };
-    if (score >= 130) return { title: "Bậc Thầy Giải Mã 💎", stars: 3, desc: "Khả năng suy luận sắc bén và chuẩn xác của cả đội!" };
-    if (score >= 80) return { title: "Nhà Khám Phá Tài Ba 🌟", stars: 2, desc: "Rất am hiểu văn hóa, ẩm thực và danh thắng Việt Nam!" };
+    if (score >= 1800) return { title: "Huyền Thoại Trí Tuệ 👑", stars: 3, desc: "Kiến thức uyên bác, xuất sắc giải mã toàn bộ thử thách!" };
+    if (score >= 1200) return { title: "Bậc Thầy Giải Mã 💎", stars: 3, desc: "Khả năng suy luận sắc bén và chuẩn xác của cả đội!" };
+    if (score >= 600) return { title: "Nhà Khám Phá Tài Ba 🌟", stars: 2, desc: "Rất am hiểu các kiến thức về dân chủ và kinh tế XHCN!" };
     return { title: "Thám Tử Tri Thức 🎯", stars: 1, desc: "Tinh thần đồng đội tuyệt vời, một khởi đầu ấn tượng!" };
   };
 

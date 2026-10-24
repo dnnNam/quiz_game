@@ -413,7 +413,8 @@
   }
 }
 
-/* Thanh hành động đoán từ khóa */
+/* Thanh hành động sân khấu từ khóa */
+.stage-action-bar,
 .guess-action-bar {
   display: flex;
   align-items: center;
@@ -547,6 +548,131 @@
   background: #fef3c7;
 }
 
+.q-points-badge {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #047857;
+  background: #d1fae5;
+  border: 1.5px solid #6ee7b7;
+  padding: 5px 12px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Question 30s Timer Badge */
+.question-timer-badge {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 4px 14px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  transition: all 0.3s ease;
+}
+
+.timer-icon-wrap {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.timer-text-wrap {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.timer-digits {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.timer-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.question-timer-badge.timer-warning {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+.question-timer-badge.timer-warning .timer-digits {
+  color: #d97706;
+}
+
+.question-timer-badge.timer-urgent {
+  border-color: #ef4444;
+  background: #fef2f2;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+  animation: timer-pulse 0.7s infinite alternate ease-in-out;
+}
+
+.question-timer-badge.timer-urgent .timer-digits {
+  color: #dc2626;
+}
+
+.question-timer-badge.timer-paused {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  box-shadow: none;
+}
+
+.question-timer-badge.timer-paused .timer-digits {
+  color: #64748b;
+}
+
+@keyframes timer-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  100% {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+/* Thanh tiến trình thời gian 30s */
+.timer-bar-track {
+  width: 100%;
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: -10px;
+  margin-bottom: -6px;
+}
+
+.timer-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #06b6d4 100%);
+  border-radius: 999px;
+  transition: width 1s linear;
+}
+
+.timer-bar-fill.bar-warning {
+  background: linear-gradient(90deg, #f59e0b 0%, #eab308 100%);
+}
+
+.timer-bar-fill.bar-urgent {
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+}
+
+.timer-bar-fill.bar-paused {
+  background: #94a3b8;
+  transition: none;
+}
+
 /* Stepper dots */
 .question-stepper {
   display: flex;
@@ -592,8 +718,19 @@
   border: 1.5px solid #f43f5e;
 }
 
+.step-timeout {
+  background: #f59e0b;
+  color: #ffffff;
+  border: 1.5px solid #f59e0b;
+}
+
 .step-bonus {
   border-style: dashed;
+}
+
+.step-dot.step-current-active {
+  box-shadow: 0 0 0 5px rgba(79, 70, 229, 0.25);
+  transform: scale(1.18);
 }
 
 /* Question Content */
@@ -622,6 +759,11 @@
   .options-grid {
     grid-template-columns: 1fr;
   }
+  .btn-next-question {
+    width: 100%;
+    padding: 14px 20px;
+    font-size: 1.05rem;
+  }
 }
 
 .option-btn {
@@ -649,6 +791,14 @@
 
 .option-btn:active:not(:disabled) {
   transform: translateY(1px);
+}
+
+.option-btn:disabled {
+  cursor: default;
+}
+
+.option-btn:disabled:not(.opt-correct):not(.opt-wrong):not(.opt-hint-correct) {
+  opacity: 0.55;
 }
 
 .option-letter {
@@ -814,6 +964,17 @@
   box-shadow: 0 4px 15px rgba(244, 63, 94, 0.15);
 }
 
+.feedback-toast.timeout {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1.5px solid #fde68a;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
+}
+
+.option-feedback-icon.correct-hint {
+  color: #10b981;
+}
+
 .feedback-toast.info {
   background: #eef2ff;
   color: #3730a3;
@@ -848,6 +1009,58 @@
 .completed-desc {
   font-size: 1.05rem;
   color: #047857;
+}
+
+/* Next Question Button */
+.next-question-container {
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
+  animation: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.btn-next-question {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  padding: 15px 36px;
+  border-radius: 18px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  box-shadow: 0 10px 25px -4px rgba(37, 99, 235, 0.4);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-next-question:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 14px 30px -4px rgba(37, 99, 235, 0.5);
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+}
+
+.btn-next-question:active {
+  transform: translateY(1px);
+}
+
+.btn-next-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-next-hint {
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.22);
+  letter-spacing: 0.4px;
 }
 
 /* Next Round Button */

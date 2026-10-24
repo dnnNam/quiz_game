@@ -98,6 +98,17 @@ export const playStreak = (combo = 2) => {
   tone(baseFreq * 1.25, 0.08, 0.18, "triangle", 0.18);
 };
 
+// Tiếng tích tắc đếm ngược
+export const playTick = () => {
+  tone(880, 0, 0.04, "sine", 0.09);
+};
+
+// Tiếng hết giờ buzzer
+export const playTimeout = () => {
+  tone(200, 0, 0.25, "sawtooth", 0.16, 130);
+  tone(160, 0.22, 0.35, "sawtooth", 0.18, 90);
+};
+
 // Đoán đúng từ khóa ngoạn mục (Big Win / Early Solve)
 export const playBigWin = () => {
   const chords = [
